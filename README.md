@@ -7,8 +7,8 @@ Relative Distance Prediction (RDP) pre-training, and weighted contrastive
 fine-tuning for cross-optimization-level function matching.
 
 This repository contains the core model, data processing utilities, and training
-code for SemFormer. Large training corpora and model checkpoints should be kept
-outside the Git repository and can be distributed separately.
+code for SemFormer. Model checkpoints and evaluation artifacts are distributed
+through Hugging Face Hub.
 
 ## Repository Layout
 
@@ -32,7 +32,7 @@ outside the Git repository and can be distributed separately.
 `model.py` provides one interface for the three semantic-link attention variants:
 
 - `t5`: scalar logit bias per relation bucket and attention head. This is the
-  default final model.
+  default mode used by the provided checkpoints.
 - `qr`: query-relation interaction, corresponding to QK + QR attention.
 - `qkr`: disentangled query-key-relation attention, corresponding to QK + QR + KR.
 
@@ -84,7 +84,7 @@ fine-tuning script expects paired training shards through `--train_shard_glob`
 and, optionally, validation shards through `--eval_shard_glob`. Shards can be
 generated with `shard_produce.py` from a processed BinaryCorp directory.
 
-Large data files should stay outside the Git repository. A common layout is:
+The default layout keeps large data files outside the tracked source tree:
 
 ```text
 SemFormer/
@@ -95,18 +95,18 @@ SemFormer/
 
 The default script paths are relative to the repository root.
 
-## Checkpoints
+## Released Artifacts
 
-If released checkpoints are available on Hugging Face Hub, download them with:
+Download the released checkpoints from Hugging Face Hub:
 
 ```bash
 mkdir -p checkpoints
 
-hf download <namespace>/semformer-rdp-pretrain \
+hf download SemFormer/semformer-rdp-pretrain \
   --repo-type model \
   --local-dir checkpoints/semformer-rdp-pretrain
 
-hf download <namespace>/semformer-finetune-bs64 \
+hf download SemFormer/semformer-finetune-bs64 \
   --repo-type model \
   --local-dir checkpoints/semformer-finetune-bs64
 ```
@@ -114,6 +114,17 @@ hf download <namespace>/semformer-finetune-bs64 \
 The pre-training checkpoint is used as the initialization for fine-tuning. The
 fine-tuned checkpoint can be used directly for embedding export and retrieval
 evaluation.
+
+BinaryCorp-3M embeddings exported by `eval_save.py` are also provided for direct
+retrieval evaluation:
+
+```bash
+mkdir -p outputs
+
+hf download SemFormer/semformer-eval-artifacts \
+  --repo-type dataset \
+  --local-dir outputs
+```
 
 ## Pre-training
 
@@ -169,6 +180,12 @@ The exported pickle can be evaluated with `fasteval.py`:
 python fasteval.py
 ```
 
+To evaluate a released artifact directly:
+
+```bash
+python fasteval.py --experiment-path ./outputs/semformer-rdp-finetune.pkl
+```
+
 The script reports MRR and Recall@1 for the default optimization-level pairs:
 O0-O3, O0-Os, O1-O3, O1-Os, O2-O3, and O2-Os.
 
@@ -176,12 +193,13 @@ This release focuses on the BCSD pre-training and fine-tuning pipeline. Other
 downstream retrieval tasks can reuse the exported function embeddings with
 task-specific query and gallery construction.
 
-## Notes
+## Configuration
 
-- `t5` is the default final architecture.
-- `qr` and `qkr` are preserved in `model.py` for ablation experiments.
-- Training outputs, checkpoints, large pickle files, and temporary caches should
-  be kept outside version control.
+- The default model mode is `t5`.
+- `qr` and `qkr` are available through `--model-mode` for attention-mode
+  ablation.
+- Generated checkpoints, training outputs, large pickle files, and temporary
+  caches are excluded from version control.
 
 
 
