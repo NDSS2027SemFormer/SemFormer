@@ -117,8 +117,8 @@ def build_rel_shards(args):
 
 def build_arg_parser():
     parser = argparse.ArgumentParser("Build fine-tuning shards for SemFormer")
-    parser.add_argument("--data-path", required=True, help="BinaryCorp training data directory")
-    parser.add_argument("--out-dir", required=True, help="output directory for shard pkl files")
+    parser.add_argument("--data-path", default="./data/binarycorp_train", help="BinaryCorp training data directory")
+    parser.add_argument("--out-dir", default="./data/rel_shards_train_shortest", help="output directory for shard pkl files")
     parser.add_argument("--opt", nargs="+", default=["O0", "O1", "O2", "O3", "Os"])
     parser.add_argument("--max-rel-dist", type=int, default=512)
     parser.add_argument("--max-raw-tokens", type=int, default=509)

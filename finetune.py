@@ -511,28 +511,28 @@ def train_loop(model, args, train_loader, valid_loader, logger, device,
 
 def main():
     parser = argparse.ArgumentParser("finetune - InfoNCE with hard positive weighting")
-    parser.add_argument("--model_path", type=str, default="../checkpoints/semformer-rdp-pretrain")
-    parser.add_argument("--output_path", type=str, default="../outputs/finetune_rdp_shortest_bs64")
+    parser.add_argument("--model_path", type=str, default="./checkpoints/semformer-rdp-pretrain")
+    parser.add_argument("--output_path", type=str, default="./outputs/finetune_rdp_shortest_bs64")
     parser.add_argument("--tokenizer_dir", type=str, default="./tokenizer")
-    parser.add_argument("--train_shard_glob", type=str, default="../data/rel_shards_train_shortest/rel_shard_*.pkl")
-    parser.add_argument("--eval_shard_glob", type=str, default="../data/rel_shards_test_shortest/rel_shard_*.pkl")
+    parser.add_argument("--train_shard_glob", type=str, default="./data/rel_shards_train_shortest/rel_shard_*.pkl")
+    parser.add_argument("--eval_shard_glob", type=str, default="./data/rel_shards_test_shortest/rel_shard_*.pkl")
     parser.add_argument("--max_rel_dist", type=int, default=512)
     parser.add_argument("--model-mode", "--model_mode", dest="model_mode",
                         type=str, default="t5", choices=MODEL_MODES,
                         help="semantic-link attention mode: t5, qr, or qkr")
     parser.add_argument("--temperature", type=float, default=0.03,
-                        help="InfoNCE 温度参数，越小对比越尖锐")
+                        help="InfoNCE temperature; smaller values produce sharper contrastive scores")
     parser.add_argument("--weight_base", type=float, default=1.0,
-                        help="相邻优化级别（如 O0-O1）的基础权重")
+                        help="base weight for easier positive pairs")
     parser.add_argument("--weight_hard", type=float, default=3.0,
-                        help="困难正样本对（如 O0-O3/Os）的权重上限")
+                        help="upper weight for hard positive pairs such as O0-O3 or O0-Os")
     parser.add_argument("--epoch", type=int, default=10)
     parser.add_argument("--batch_size", type=int, default=64)
     parser.add_argument("--eval_batch_size", type=int, default=256)
     parser.add_argument("--lr", type=float, default=3e-6)
     parser.add_argument("--weight_decay", type=float, default=1e-4)
     parser.add_argument("--gradient_accumulation_steps", type=int, default=2,
-                        help="梯度累积步数，等效 batch = batch_size * gradient_accumulation_steps")
+                        help="gradient accumulation steps; effective batch = batch_size * steps")
     parser.add_argument("--num_workers", type=int, default=4)
     parser.add_argument("--pin_memory", action="store_true")
     parser.add_argument("--fp16", dest="fp16", action="store_true", default=True)
@@ -547,7 +547,7 @@ def main():
     parser.add_argument("--no_shuffle_shards", action="store_true")
     parser.add_argument("--use_dp", action="store_true")
     parser.add_argument("--gradient_checkpointing", dest="gradient_checkpointing", action="store_true", default=True,
-                        help="开启后可降低显存占用，代价是训练速度下降")
+                        help="enable gradient checkpointing to reduce memory usage at the cost of speed")
     parser.add_argument("--no_gradient_checkpointing", "--no-gradient-checkpointing",
                         dest="gradient_checkpointing", action="store_false")
     parser.add_argument("--len_mode", type=str, default="estimate", choices=["estimate", "strict"])

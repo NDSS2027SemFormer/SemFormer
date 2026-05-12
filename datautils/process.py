@@ -6,7 +6,7 @@ import binaryai
 import networkx as nx
 from util.base import Binarybase
 
-# 1) 固定根目录为本脚本所在目录
+# Use this script directory as the working root.
 ROOT = os.path.dirname(os.path.abspath(__file__))
 SAVEROOT = os.path.join(ROOT, "extract")   # dir of pickle files saved by IDA
 DATAROOT = os.path.join(ROOT, "dataset")   # dir of binaries (not stripped)
@@ -95,7 +95,7 @@ if __name__ == "__main__":
     #unstrip_path = os.path.join(DATAROOT, filename)
     binary_abs_path = idc.get_input_file_path()
     basename = os.path.basename(binary_abs_path)
-    filename, _ = os.path.splitext(basename)  # 例如 "a.exe" -> "a"
+    filename, _ = os.path.splitext(basename)
     unstrip_path = os.path.join(DATAROOT, filename)
     idc.auto_wait()
     binary_data = BinaryData(unstrip_path)

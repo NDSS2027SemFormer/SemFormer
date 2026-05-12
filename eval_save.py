@@ -69,9 +69,9 @@ def infer_no_rel_id(rel_masks, fallback: int) -> int:
 
 def build_arg_parser():
     parser = argparse.ArgumentParser("Export SemFormer embeddings for retrieval evaluation")
-    parser.add_argument("--model-dir", required=True, help="checkpoint directory or pytorch_model.bin path")
-    parser.add_argument("--dataset-dir", required=True, help="BinaryCorp evaluation data directory")
-    parser.add_argument("--out-pkl", required=True, help="output pickle path for exported embeddings")
+    parser.add_argument("--model-dir", default="./checkpoints/semformer-finetune-bs64", help="checkpoint directory or pytorch_model.bin path")
+    parser.add_argument("--dataset-dir", default="./data/binarycorp_eval", help="BinaryCorp evaluation data directory")
+    parser.add_argument("--out-pkl", default="./outputs/eval_embeddings.pkl", help="output pickle path for exported embeddings")
     parser.add_argument("--cache-file", default="", help="optional processed dataset cache")
     parser.add_argument("--model-mode", "--model_mode", dest="model_mode", default="t5", choices=MODEL_MODES)
     parser.add_argument("--max-rel-dist", type=int, default=512)

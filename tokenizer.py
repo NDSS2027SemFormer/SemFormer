@@ -33,7 +33,7 @@ def save_tokens(prefixs):
     cnts=1
     file_cnt=0
     binlist=[]
-    nowdir='../largedata/ourclean'
+    nowdir='./data/ourclean'
     docs = os.listdir(nowdir)
     for i in docs:
         pth=os.path.join(nowdir,i)

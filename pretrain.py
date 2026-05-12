@@ -1023,9 +1023,9 @@ def train(args):
 def main():
     ap = argparse.ArgumentParser()
 
-    ap.add_argument("--pkl-dir", default="../data/BinaryCorp/train")
+    ap.add_argument("--pkl-dir", default="./data/BinaryCorp/train")
     ap.add_argument("--tokenizer-dir", default="./tokenizer")
-    ap.add_argument("--out", default="../outputs/pretrain_rdp_t5")
+    ap.add_argument("--out", default="./outputs/pretrain_rdp_t5")
 
     ap.add_argument("--max-len", type=int, default=512)
     ap.add_argument("--max-raw-tokens", type=int, default=400)
@@ -1082,7 +1082,7 @@ def main():
 
     ap.add_argument("--item-timeout-sec", type=float, default=300.0,
                     help="timeout for processing ONE function sample (seconds); 0 disables")
-    ap.add_argument("--error-dir", type=str, default="../outputs/pretrain_rdp_t5/error_logs",
+    ap.add_argument("--error-dir", type=str, default="./outputs/pretrain_rdp_t5/error_logs",
                     help="directory to write per-worker error logs")
 
     ap.add_argument("--loader-timeout-sec", type=float, default=120.0,

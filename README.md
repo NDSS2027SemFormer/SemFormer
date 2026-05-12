@@ -6,22 +6,23 @@ sequences. The implementation includes semantic-link relative distance modeling,
 Relative Distance Prediction (RDP) pre-training, and weighted contrastive
 fine-tuning for cross-optimization-level function matching.
 
-This repository contains the core model and training code used in the paper.
-Datasets and BinaryCorp preprocessing artifacts are not included. Pre-trained
-and fine-tuned checkpoints are released separately on Hugging Face Hub.
+This repository contains the core model, data processing utilities, and training
+code for SemFormer. Large training corpora and model checkpoints should be kept
+outside the Git repository and can be distributed separately.
 
 ## Repository Layout
 
 ```text
 .
-|-- code/
-|   |-- model.py       # Unified SemFormer model with t5/qr/qkr attention modes
-|   |-- data.py        # Relative-distance data loading for evaluation/export
-|   |-- pretrain.py    # MLM + RDP pre-training
-|   |-- shard_produce.py # Fine-tuning shard generation
-|   |-- finetune.py    # Weighted InfoNCE fine-tuning
-|   |-- eval_save.py   # Embedding export for retrieval evaluation
-|   `-- fasteval.py    # MRR and Recall@1 evaluation from exported embeddings
+|-- model.py           # Unified SemFormer model with t5/qr/qkr attention modes
+|-- data.py            # Relative-distance data loading for evaluation/export
+|-- pretrain.py        # MLM + RDP pre-training
+|-- shard_produce.py   # Fine-tuning shard generation
+|-- finetune.py        # Weighted InfoNCE fine-tuning
+|-- eval_save.py       # Embedding export for retrieval evaluation
+|-- fasteval.py        # MRR and Recall@1 evaluation from exported embeddings
+|-- tokenizer/         # Default tokenizer files
+|-- datautils/         # Binary feature extraction and loading utilities
 |-- requirements.txt
 `-- README.md
 ```
@@ -39,11 +40,10 @@ Use `--model-mode` in `pretrain.py`, `finetune.py`, and `eval_save.py` to select
 
 ## Environment
 
-The experiments were run on Ubuntu 20.04 with CUDA driver 535.86.10 and two
-NVIDIA A6000/A100 GPUs. The verified Python environment uses Python 3.8.20,
-PyTorch 1.12.1 with CUDA 11.3, Transformers 4.31.0, Tokenizers 0.13.3,
-NetworkX 3.1, NumPy 1.24.3, Pandas 2.0.3, scikit-learn 1.1.3, SciPy 1.10.1,
-and TensorBoard 2.12.3.
+SemFormer is developed for a PyTorch and HuggingFace Transformers environment.
+The recommended setup uses Python 3.8, PyTorch 1.12.1, Transformers 4.31.0,
+Tokenizers 0.13.3, NetworkX 3.1, NumPy 1.24.3, Pandas 2.0.3, scikit-learn
+1.1.3, SciPy 1.10.1, and TensorBoard 2.12.3.
 
 Create an independent SemFormer environment with:
 
@@ -55,8 +55,8 @@ conda install pytorch==1.12.1 torchvision==0.13.1 cudatoolkit=11.3 -c pytorch -y
 pip install -r requirements.txt
 ```
 
-If your GPU driver or CUDA runtime is different, install the PyTorch build that
-matches your machine first, then install the remaining dependencies from
+Install the PyTorch build that matches your CUDA runtime if the example above
+does not match your machine, then install the remaining dependencies from
 `requirements.txt`.
 
 For a quick dependency check:
@@ -88,24 +88,25 @@ Large data files should stay outside the Git repository. A common layout is:
 
 ```text
 SemFormer/
-|-- code/
 |-- checkpoints/       # downloaded checkpoints
 |-- data/              # ignored by git
 `-- outputs/           # ignored by git
 ```
 
+The default script paths are relative to the repository root.
+
 ## Checkpoints
 
-After the checkpoints are available on Hugging Face Hub, download them with:
+If released checkpoints are available on Hugging Face Hub, download them with:
 
 ```bash
 mkdir -p checkpoints
 
-hf download SemFormer/semformer-rdp-pretrain \
+hf download <namespace>/semformer-rdp-pretrain \
   --repo-type model \
   --local-dir checkpoints/semformer-rdp-pretrain
 
-hf download SemFormer/semformer-finetune-bs64 \
+hf download <namespace>/semformer-finetune-bs64 \
   --repo-type model \
   --local-dir checkpoints/semformer-finetune-bs64
 ```
@@ -116,41 +117,23 @@ evaluation.
 
 ## Pre-training
 
-Run RDP pre-training from the `code/` directory. The default arguments in
-`pretrain.py` follow the configuration used for the final T5-style RDP
-pre-training run: scalar semantic-link bias, MLM+RDP, `max_rel_dist=512`,
-`max_raw_tokens=400`, `pairs_per_seq=8`, mixed RDP pair sampling,
-`nontrivial_frac=0.9`, and `max_steps=680000`.
+Run RDP pre-training with the default SemFormer configuration:
 
-For a two-GPU run:
+For single-node distributed training:
 
 ```bash
-cd code
-CUDA_VISIBLE_DEVICES=0,1 \
-NCCL_P2P_DISABLE=1 \
-PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128 \
-torchrun --standalone --nproc_per_node=2 pretrain.py \
-  --pkl-dir ../data/BinaryCorp/train \
-  --out ../outputs/pretrain_rdp_t5
+torchrun --standalone --nproc_per_node=<num_gpus> pretrain.py
 ```
 
-The script defaults to `--tokenizer-dir ./tokenizer`, `--batch-size 24`,
-`--grad-accum-steps 4`, `--num-workers 8`, `--fp16`, and `--pe-equals-we`.
-Use `--use-longest-path` to reproduce the longest-distance ablation; otherwise
-the shortest reachable distance is used.
+Adjust the default paths in `pretrain.py` or pass command-line arguments if your
+data layout is different.
 
 ## Fine-tuning Shard Generation
 
 Generate fine-tuning shards before running `finetune.py`:
 
 ```bash
-cd code
-python shard_produce.py \
-  --data-path ../data/binarycorp_train \
-  --out-dir ../data/rel_shards_train_shortest \
-  --max-rel-dist 512 \
-  --max-pairs-per-shard 6000 \
-  --num-workers 32
+python shard_produce.py
 ```
 
 Each shard is a pickle file containing `(functions_chunk, rel_chunk, ebds_chunk)`,
@@ -159,22 +142,15 @@ which is the format consumed by `finetune.py`.
 ## Fine-tuning
 
 Fine-tune the pre-trained checkpoint with weighted in-batch InfoNCE. The default
-arguments in `finetune.py` follow the final batch-size-64 configuration used in
-the paper: `batch_size=64`, `gradient_accumulation_steps=2`, `lr=3e-6`,
-`temperature=0.03`, `weight_base=1.0`, `weight_hard=3.0`, `freeze_cnt=0`,
-mixed precision, and gradient checkpointing.
+arguments in `finetune.py` provide the standard SemFormer fine-tuning
+configuration.
 
 ```bash
-cd code
-CUDA_VISIBLE_DEVICES=0 python finetune.py
+python finetune.py
 ```
 
-By default, the script reads the pre-training checkpoint from
-`../checkpoints/semformer-rdp-pretrain`, training shards from
-`../data/rel_shards_train_shortest/rel_shard_*.pkl`, validation shards from
-`../data/rel_shards_test_shortest/rel_shard_*.pkl`, and writes outputs to
-`../outputs/finetune_rdp_shortest_bs64`. Override these paths if your data
-layout is different.
+Adjust the default paths in `finetune.py` or pass command-line arguments if your
+data layout is different.
 
 The fine-tuning objective increases the training weight of harder positive
 pairs, especially pairs compiled under more distant optimization levels.
@@ -184,39 +160,28 @@ pairs, especially pairs compiled under more distant optimization levels.
 `eval_save.py` exports function embeddings for downstream retrieval evaluation:
 
 ```bash
-cd code
-python eval_save.py \
-  --model-dir ../checkpoints/semformer-finetune-bs64 \
-  --dataset-dir ../data/binarycorp_eval \
-  --out-pkl ../outputs/eval_embeddings.pkl \
-  --model-mode t5
+python eval_save.py
 ```
 
 The exported pickle can be evaluated with `fasteval.py`:
 
 ```bash
-cd code
-python fasteval.py \
-  --experiment-path ../outputs/eval_embeddings.pkl \
-  --poolsize 10000
+python fasteval.py
 ```
 
 The script reports MRR and Recall@1 for the default optimization-level pairs:
 O0-O3, O0-Os, O1-O3, O1-Os, O2-O3, and O2-Os.
 
-The public release focuses on the BCSD pre-training and fine-tuning pipeline.
-The vulnerability-search experiments in the paper use the same exported
-function embeddings but depend on additional CVE-specific data preparation that
-is not included in this repository.
+This release focuses on the BCSD pre-training and fine-tuning pipeline. Other
+downstream retrieval tasks can reuse the exported function embeddings with
+task-specific query and gallery construction.
 
 ## Notes
 
 - `t5` is the default final architecture.
 - `qr` and `qkr` are preserved in `model.py` for ablation experiments.
-- Training outputs, checkpoints, logs, and BinaryCorp data are ignored by git by
-  default.
-- The public repository should not include local IDA databases, extracted
-  binaries, large pickle files, checkpoints, or logs.
+- Training outputs, checkpoints, large pickle files, and temporary caches should
+  be kept outside version control.
 
 
 

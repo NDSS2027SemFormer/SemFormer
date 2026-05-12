@@ -173,7 +173,7 @@ class DataBaseCrossCompiler(DatasetBase):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset_path', type=str, default='../extract')
+    parser.add_argument('--dataset_path', type=str, default='./extract')
     parser.add_argument('--prefixfilter', type=str, default=None)
     parser.add_argument('--all_data', type=bool, default=True)
     args = parser.parse_args()
@@ -198,7 +198,7 @@ if __name__ == '__main__':
             print(func_name, hex(func_addr))
 
     # demo for cross compiler dataset 
-    dataset = DataBaseCrossCompiler('../extractDataset/coreutils', ["coreutils-b2sum"], False, ['O0', 'Os'])
+    dataset = DataBaseCrossCompiler('./extractDataset/coreutils', ["coreutils-b2sum"], False, ['O0', 'Os'])
     dataset.load_pair_data()
     cnt = 0
     functions = []

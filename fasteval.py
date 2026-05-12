@@ -87,7 +87,7 @@ def parse_pairs(raw_pairs: str) -> Iterable[Tuple[str, str]]:
 
 def main():
     parser = argparse.ArgumentParser("Evaluate exported SemFormer embeddings")
-    parser.add_argument("--experiment-path", "--experiment_path", dest="experiment_path", required=True)
+    parser.add_argument("--experiment-path", "--experiment_path", dest="experiment_path", default="./outputs/eval_embeddings.pkl")
     parser.add_argument("--poolsize", type=int, default=32)
     parser.add_argument(
         "--pairs",
