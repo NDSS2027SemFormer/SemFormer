@@ -363,9 +363,9 @@ def compute_cfg_token_rel_and_mask(
             rel[src, j] = d
             mask[src, j] = 1
         for j in range(L):
-            if rel[i, j] != no_relation_id and rel[j, i] == no_relation_id:
-                rel[j, i] = rel[i, j]
-                mask[j, i] = 1
+            if rel[src, j] != no_relation_id and rel[j, src] == no_relation_id:
+                rel[j, src] = rel[src, j]
+                mask[j, src] = 1
 
     return rel, mask, no_relation_id
 

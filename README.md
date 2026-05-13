@@ -42,8 +42,8 @@ Use `--model-mode` in `pretrain.py`, `finetune.py`, and `eval_save.py` to select
 
 SemFormer is developed for a PyTorch and HuggingFace Transformers environment.
 The recommended setup uses Python 3.8, PyTorch 1.12.1, Transformers 4.31.0,
-Tokenizers 0.13.3, NetworkX 3.1, NumPy 1.24.3, Pandas 2.0.3, scikit-learn
-1.1.3, SciPy 1.10.1, and TensorBoard 2.12.3.
+Tokenizers 0.13.3, NetworkX 3.1, NumPy 1.24.3, scikit-learn 1.1.3, and
+TQDM 4.66.5.
 
 Create an independent SemFormer environment with:
 
@@ -58,6 +58,9 @@ pip install -r requirements.txt
 Install the PyTorch build that matches your CUDA runtime if the example above
 does not match your machine, then install the remaining dependencies from
 `requirements.txt`.
+
+The IDA feature extraction utilities under `datautils/` additionally require
+IDA Python and BinaryAI when raw binaries are processed from scratch.
 
 For a quick dependency check:
 
@@ -128,7 +131,7 @@ hf download SemFormer/semformer-eval-artifacts \
 
 ## Pre-training
 
-Run RDP pre-training with the default SemFormer configuration:
+Run MLM + RDP pre-training with the default SemFormer configuration:
 
 For single-node distributed training:
 
@@ -136,8 +139,16 @@ For single-node distributed training:
 torchrun --standalone --nproc_per_node=<num_gpus> pretrain.py
 ```
 
-Adjust the default paths in `pretrain.py` or pass command-line arguments if your
-data layout is different.
+By default, `pretrain.py` reads BinaryCorp-style pickle files from
+`./data/BinaryCorp/train`, uses the tokenizer in `./tokenizer`, and writes
+checkpoints to `./outputs/pretrain_rdp_t5`.
+
+The pre-training data pipeline builds instruction-level relative distance
+matrices from the control-flow graph. The default setting uses shortest-path
+distances with operand-anchor links enabled. Use `--use-longest-path` for the
+longest-path variant and `--no-use-operand-anchor` to disable operand-anchor
+links. Adjust the default paths in `pretrain.py` or pass command-line arguments
+if your data layout is different.
 
 ## Fine-tuning Shard Generation
 

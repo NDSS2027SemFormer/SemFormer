@@ -29,11 +29,12 @@ from transformers import (
 import readidadata
 
 from data import gen_funcstr_with_rel_no_dup as gen_funcstr_with_rel
-
 from model import BinBertForMaskedLMRDP, MODEL_MODES, set_model_mode
 
 
+# =========================
 # timeout helper (Linux only)
+# =========================
 try:
     import signal
     _HAS_SIGNAL = True
@@ -112,7 +113,9 @@ def append_error_line(
         f.write(line + "\n")
 
 
+# =========================
 # DDP utils
+# =========================
 def ddp_setup():
     """
     torchrun will set:
@@ -155,7 +158,9 @@ def ddp_all_reduce_sum(x: torch.Tensor) -> torch.Tensor:
     return x
 
 
+# =========================
 # misc utils
+# =========================
 def seed_all(seed: int, rank: int = 0):
     s = int(seed) + 1000 * int(rank)
     random.seed(s)
@@ -234,7 +239,9 @@ def bucket_id(label: int, no_edge_id: int) -> int:
     return 11
 
 
+# =========================
 # CFG -> mutex bb pairs (unchanged)
+# =========================
 def _add_super_exit_if_needed(cfg: nx.DiGraph) -> Tuple[nx.DiGraph, object]:
     if cfg is None or cfg.number_of_nodes() == 0:
         return cfg, None
@@ -329,9 +336,11 @@ def _compute_mutex_bb_pairs(cfg: nx.DiGraph) -> Set[Tuple[object, object]]:
     return mutex_pairs
 
 
+# =========================
 # Dataset: infinite stream, yields (tokens, rel_small)
 #   - per-function timeout + per-worker error logs
 #   - unreachable id is ALWAYS (max_rel_dist + 1)
+# =========================
 class BinaryCorpIterableDatasetWithRel(IterableDataset):
     def __init__(
         self,
@@ -339,6 +348,7 @@ class BinaryCorpIterableDatasetWithRel(IterableDataset):
         max_raw_tokens: int,
         max_rel_dist: int,
         use_longest_path: bool = False,
+        use_operand_anchor: bool = True,
         item_timeout_sec: float = 0.0,
         error_dir: str = "./error_logs",
     ):
@@ -347,6 +357,7 @@ class BinaryCorpIterableDatasetWithRel(IterableDataset):
         self.max_raw_tokens = max_raw_tokens
         self.max_rel_dist = int(max_rel_dist)
         self.use_longest_path = bool(use_longest_path)
+        self.use_operand_anchor = bool(use_operand_anchor)
 
         self.no_edge_id = int(self.max_rel_dist + 1)   # e.g. 512 -> 513
 
@@ -414,6 +425,7 @@ class BinaryCorpIterableDatasetWithRel(IterableDataset):
                                 ftuple,
                                 max_rel_dist=self.max_rel_dist,
                                 max_raw_tokens=self.max_raw_tokens,
+                                use_operand_anchor=self.use_operand_anchor,
                                 use_longest_path=self.use_longest_path,
                             )
                             toks = aux.get("tokens", None)
@@ -455,8 +467,10 @@ class BinaryCorpIterableDatasetWithRel(IterableDataset):
                     yield toks, rel_small
 
 
+# =========================
 # Collator: MLM + RDP + rel_ids
 #   - unreachable id is ALWAYS (max_rel_dist + 1)
+# =========================
 @dataclass
 class BatchStats:
     Lmax: int
@@ -498,8 +512,8 @@ class PretrainCollatorRDPNoMask:
         self.max_rel_dist = int(max_rel_dist)
 
         self.no_edge_id = int(self.max_rel_dist + 1)  # 512 -> 513
-        self.no_rel_id = int(self.no_edge_id)
-        self.rel_num_types = int(self.max_rel_dist + 2)
+        self.no_rel_id = int(self.no_edge_id)         # compat
+        self.rel_num_types = int(self.max_rel_dist + 2)  # 514
 
         self.mlm_prob = float(mlm_prob)
         self.pairs_per_seq = int(pairs_per_seq)
@@ -647,7 +661,9 @@ class PretrainCollatorRDPNoMask:
         }
 
 
+# =========================
 # build model
+# =========================
 def build_model(
     vocab_size: int,
     max_len: int,
@@ -664,8 +680,8 @@ def build_model(
 ) -> BinBertForMaskedLMRDP:
     max_rel_dist = int(max_rel_dist)
 
-    no_edge_id = int(max_rel_dist + 1)
-    rel_num_types = int(max_rel_dist + 2)
+    no_edge_id = int(max_rel_dist + 1)   # 513
+    rel_num_types = int(max_rel_dist + 2)  # 514
 
     cfg = BertConfig(
         vocab_size=vocab_size,
@@ -677,7 +693,7 @@ def build_model(
 
         rel_num_types=rel_num_types,
         no_edge_id=no_edge_id,
-        no_rel_id=no_edge_id,
+        no_rel_id=no_edge_id,  # compat
 
         rel_stat_every=rel_stat_every,
         rel_probe_every=rel_probe_every,
@@ -688,11 +704,14 @@ def build_model(
 
     if pe_equals_we:
         model.bert.embeddings.position_embeddings = model.bert.embeddings.word_embeddings
-        
+        print("[CHECK] position_embeddings = word_embeddings")
+
     return model
 
 
+# =========================
 # save ckpt
+# =========================
 def save_ckpt(out_dir, model, tokenizer, optimizer, scheduler, scaler, global_step, rank: int):
     if rank != 0:
         return
@@ -715,7 +734,9 @@ def save_ckpt(out_dir, model, tokenizer, optimizer, scheduler, scaler, global_st
     print(f"[SAVE] step={global_step} -> {out_dir}")
 
 
+# =========================
 # train
+# =========================
 def train(args):
     ddp_on, rank, local_rank, world_size = ddp_setup()
 
@@ -743,8 +764,8 @@ def train(args):
     mask_id = tok.mask_token_id
     unk_id = tok.unk_token_id if tok.unk_token_id is not None else mask_id
 
-    no_edge_id = int(args.max_rel_dist + 1)
-    rel_num_types = int(args.max_rel_dist + 2)
+    no_edge_id = int(args.max_rel_dist + 1)   # 513
+    rel_num_types = int(args.max_rel_dist + 2)  # 514
     if is_main_process(rank):
         print(f"[REL] max_rel_dist={args.max_rel_dist} -> no_edge_id={no_edge_id}, rel_num_types={rel_num_types}")
 
@@ -753,6 +774,7 @@ def train(args):
         max_raw_tokens=args.max_raw_tokens,
         max_rel_dist=args.max_rel_dist,
         use_longest_path=args.use_longest_path,
+        use_operand_anchor=args.use_operand_anchor,
         item_timeout_sec=args.item_timeout_sec,
         error_dir=args.error_dir,
     )
@@ -1077,16 +1099,17 @@ def main():
     ap.add_argument("--intermediate-size", type=int, default=3072)
 
     ap.add_argument("--seed", type=int, default=42)
-
     ap.add_argument("--use-longest-path", action="store_true", default=False)
+    ap.add_argument("--use-operand-anchor", dest="use_operand_anchor", action="store_true", default=True)
+    ap.add_argument("--no-use-operand-anchor", dest="use_operand_anchor", action="store_false")
 
     ap.add_argument("--item-timeout-sec", type=float, default=300.0,
                     help="timeout for processing ONE function sample (seconds); 0 disables")
     ap.add_argument("--error-dir", type=str, default="./outputs/pretrain_rdp_t5/error_logs",
                     help="directory to write per-worker error logs")
 
-    ap.add_argument("--loader-timeout-sec", type=float, default=120.0,
-                    help="timeout for DataLoader to yield ONE batch; triggers loader reset")
+    ap.add_argument("--loader-timeout-sec", type=float, default=0.0,
+                    help="timeout for DataLoader to yield ONE batch; 0 disables DataLoader timeout")
     ap.add_argument("--loader-max-resets", type=int, default=0,
                     help="0 means unlimited resets; otherwise stop after N resets")
 
