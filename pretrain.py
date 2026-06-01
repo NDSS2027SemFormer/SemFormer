@@ -1045,7 +1045,7 @@ def train(args):
 def main():
     ap = argparse.ArgumentParser()
 
-    ap.add_argument("--pkl-dir", default="/home/nfs/d2025-sxj/modi-jtrans/jTrans/BinaryCorp/train")
+    ap.add_argument("--pkl-dir", default="./data/BinaryCorp/train")
     ap.add_argument("--tokenizer-dir", default="./tokenizer")
     ap.add_argument("--out", default="./outputs/pretrain_rdp_t5")
 
