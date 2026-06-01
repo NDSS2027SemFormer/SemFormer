@@ -1045,12 +1045,12 @@ def train(args):
 def main():
     ap = argparse.ArgumentParser()
 
-    ap.add_argument("--pkl-dir", default="./data/BinaryCorp/train")
+    ap.add_argument("--pkl-dir", default="/home/nfs/d2025-sxj/modi-jtrans/jTrans/BinaryCorp/train")
     ap.add_argument("--tokenizer-dir", default="./tokenizer")
     ap.add_argument("--out", default="./outputs/pretrain_rdp_t5")
 
     ap.add_argument("--max-len", type=int, default=512)
-    ap.add_argument("--max-raw-tokens", type=int, default=400)
+    ap.add_argument("--max-raw-tokens", type=int, default=509)
 
     ap.add_argument("--max-rel-dist", type=int, default=512)
     ap.add_argument("--model-mode", "--model_mode", dest="model_mode",
@@ -1062,22 +1062,22 @@ def main():
 
     ap.add_argument("--pair-mode", type=str, default="mix", choices=["uniform", "mix"])
     ap.add_argument("--nontrivial-frac", type=float, default=0.9)
-    ap.add_argument("--max-resample", type=int, default=200)
+    ap.add_argument("--max-resample", type=int, default=50)
 
     ap.add_argument("--nontriv-bucket-min", type=int, default=2)
     ap.add_argument("--nontriv-bucket-max", type=int, default=9)
 
     ap.add_argument("--epochs", type=int, default=5,
                     help="recorded for reproducibility; training is controlled by --max-steps")
-    ap.add_argument("--max-steps", type=int, default=680_000)
-    ap.add_argument("--logging-steps", type=int, default=50)
+    ap.add_argument("--max-steps", type=int, default=500_000)
+    ap.add_argument("--logging-steps", type=int, default=200)
     ap.add_argument("--ckpt-steps", "--save-steps", dest="ckpt_steps", type=int, default=10_000)
 
     ap.add_argument("--batch-size", type=int, default=24)
     ap.add_argument("--grad-accum-steps", type=int, default=4)
 
-    ap.add_argument("--num-workers", type=int, default=8)
-    ap.add_argument("--prefetch-factor", type=int, default=2)
+    ap.add_argument("--num-workers", type=int, default=10)
+    ap.add_argument("--prefetch-factor", type=int, default=1)
 
     ap.add_argument("--lr", type=float, default=3e-5)
     ap.add_argument("--warmup-ratio", type=float, default=0.06)
@@ -1103,12 +1103,12 @@ def main():
     ap.add_argument("--use-operand-anchor", dest="use_operand_anchor", action="store_true", default=True)
     ap.add_argument("--no-use-operand-anchor", dest="use_operand_anchor", action="store_false")
 
-    ap.add_argument("--item-timeout-sec", type=float, default=300.0,
+    ap.add_argument("--item-timeout-sec", type=float, default=120.0,
                     help="timeout for processing ONE function sample (seconds); 0 disables")
     ap.add_argument("--error-dir", type=str, default="./outputs/pretrain_rdp_t5/error_logs",
                     help="directory to write per-worker error logs")
 
-    ap.add_argument("--loader-timeout-sec", type=float, default=0.0,
+    ap.add_argument("--loader-timeout-sec", type=float, default=300.0,
                     help="timeout for DataLoader to yield ONE batch; 0 disables DataLoader timeout")
     ap.add_argument("--loader-max-resets", type=int, default=0,
                     help="0 means unlimited resets; otherwise stop after N resets")

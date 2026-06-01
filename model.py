@@ -62,8 +62,7 @@ class CFGSelfAttention(BertSelfAttention):
     """BERT self-attention augmented with semantic-link relative distances."""
 
     def __init__(self, config, position_embedding_type=None):
-        super().__init__(config, position_embedding_type="absolute")
-        self.position_embedding_type = "absolute"
+        super().__init__(config, position_embedding_type=position_embedding_type)
         self.semantic_link_mode = normalize_model_mode(
             getattr(config, "semantic_link_mode", getattr(config, "model_mode", "t5"))
         )
@@ -168,10 +167,7 @@ class CFGSelfAttention(BertSelfAttention):
             else:
                 rel_mask_src = rel_ids_raw
             cfg_mask = (rel_mask_src == int(self.no_edge_id)).unsqueeze(1)
-            attention_scores = attention_scores.masked_fill(
-                cfg_mask,
-                torch.finfo(attention_scores.dtype).min,
-            )
+            attention_scores = attention_scores.masked_fill(cfg_mask, -1e4)
 
         if attention_mask is not None:
             attention_scores = attention_scores + attention_mask
@@ -360,7 +356,7 @@ class BinBertModelcfg(BertModel):
         set_model_mode(config, getattr(config, "semantic_link_mode", getattr(config, "model_mode", "t5")))
         super().__init__(config, add_pooling_layer=add_pooling_layer)
         self.config = config
-        self.embeddings.position_embedding_type = "absolute"
+        self.embeddings.position_embedding_type = "relative_key_query"
 
         old_encoder_state = self.encoder.state_dict()
         self.encoder = CFGBertEncoder(config)

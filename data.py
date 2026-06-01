@@ -302,12 +302,13 @@ def compute_cfg_token_rel_and_mask(
     for idx, bb in enumerate(bb_ids):
         bb2idxs[bb].append(idx)
 
-    adj = [[] for _ in range(L)]
+    adj = [set() for _ in range(L)]
 
     for bb, idxs in bb2idxs.items():
         idxs_sorted = sorted(idxs)
         for a, b in zip(idxs_sorted, idxs_sorted[1:]):
-            adj[a].append(b)
+            adj[a].add(b)
+            adj[b].add(a)
     for u, v in cfg.edges():
         if u not in bb2idxs or v not in bb2idxs:
             continue
@@ -331,7 +332,8 @@ def compute_cfg_token_rel_and_mask(
             anchor_u = max(bb2idxs[u])
             anchor_src = "last_tok"
 
-        adj[anchor_u].append(first_v)
+        adj[anchor_u].add(first_v)
+        adj[first_v].add(anchor_u)
 
     rel = np.full((L, L), no_relation_id, dtype=np.int64)
     mask = np.zeros((L, L), dtype=np.int64)
@@ -362,10 +364,6 @@ def compute_cfg_token_rel_and_mask(
                 d = max_rel_dist
             rel[src, j] = d
             mask[src, j] = 1
-        for j in range(L):
-            if rel[src, j] != no_relation_id and rel[j, src] == no_relation_id:
-                rel[j, src] = rel[src, j]
-                mask[j, src] = 1
 
     return rel, mask, no_relation_id
 
@@ -414,13 +412,15 @@ def compute_cfg_token_rel_and_mask_longest(
     for idx, bb in enumerate(bb_ids):
         bb2idxs[bb].append(idx)
 
-    adj = [[] for _ in range(L)]
+    back_edges_cfg = _find_cfg_back_edges(cfg)
+
+    adj_fwd = [[] for _ in range(L)]
     in_degree = [0] * L
 
     for bb, idxs in bb2idxs.items():
         idxs_sorted = sorted(idxs)
         for a, b in zip(idxs_sorted, idxs_sorted[1:]):
-            adj[a].append(b)
+            adj_fwd[a].append(b)
             in_degree[b] += 1
 
     for u, v in cfg.edges():
@@ -443,26 +443,27 @@ def compute_cfg_token_rel_and_mask_longest(
         if anchor_u is None:
             anchor_u = max(bb2idxs[u])
 
-        adj[anchor_u].append(first_v)
+        adj_fwd[anchor_u].append(first_v)
         in_degree[first_v] += 1
-    topo_order = []
-    temp_in_degree = in_degree[:]
-    queue = deque([i for i in range(L) if temp_in_degree[i] == 0])
 
+    topo_order = []
+    temp_in = in_degree[:]
+    queue = deque([i for i in range(L) if temp_in[i] == 0])
     while queue:
         node = queue.popleft()
         topo_order.append(node)
-        for nei in adj[node]:
-            temp_in_degree[nei] -= 1
-            if temp_in_degree[nei] == 0:
+        for nei in adj_fwd[node]:
+            temp_in[nei] -= 1
+            if temp_in[nei] == 0:
                 queue.append(nei)
 
     topo_pos = {node: pos for pos, node in enumerate(topo_order)}
 
+    mutex_regions = _compute_branch_mutex_regions(cfg) if use_mutex else []
+
     rel = np.full((L, L), no_relation_id, dtype=np.int64)
     mask = np.zeros((L, L), dtype=np.int64)
 
-    mutex_regions = _compute_branch_mutex_regions(cfg) if use_mutex else []
     for src in range(L):
         if src not in topo_pos:
             rel[src, src] = 0
@@ -471,12 +472,12 @@ def compute_cfg_token_rel_and_mask_longest(
 
         dist = [-1] * L
         dist[src] = 0
-        src_pos = topo_pos[src]
+        src_topo = topo_pos[src]
 
-        for node in topo_order[src_pos:]:
+        for node in topo_order[src_topo:]:
             if dist[node] < 0:
                 continue
-            for nei in adj[node]:
+            for nei in adj_fwd[node]:
                 new_d = dist[node] + 1
                 if new_d > dist[nei]:
                     dist[nei] = new_d
@@ -488,13 +489,24 @@ def compute_cfg_token_rel_and_mask_longest(
             if use_mutex and _is_mutex(bb_src, bb_ids[j], mutex_regions):
                 continue
             d_capped = min(d, max_rel_dist)
-            rel[src, j] = d_capped
-            mask[src, j] = 1
-    for i in range(L):
-        for j in range(L):
-            if rel[i, j] != no_relation_id and rel[j, i] == no_relation_id:
-                rel[j, i] = rel[i, j]
-                mask[j, i] = 1
+            if rel[src, j] == no_relation_id or d_capped > rel[src, j]:
+                rel[src, j] = d_capped
+                mask[src, j] = 1
+
+    rel_T = rel.T.copy()
+    mask_T = mask.T.copy()
+
+    both_valid = (rel != no_relation_id) & (rel_T != no_relation_id)
+    only_rev = (rel == no_relation_id) & (rel_T != no_relation_id)
+
+    rel[both_valid] = np.maximum(rel[both_valid], rel_T[both_valid])
+    mask[both_valid] = 1
+
+    rel[only_rev] = rel_T[only_rev]
+    mask[only_rev] = 1
+
+    np.fill_diagonal(rel, 0)
+    np.fill_diagonal(mask, 1)
 
     return rel, mask, no_relation_id
 
